@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "alibaba cloud kms(Key Management Service) client.",
   "main": "index.js",
+  "bin": {
+    "ali-kms": "bin/ali-kms"
+  },
   "scripts": {
     "test": "mocha -r intelli-espower-loader -name '*.test.js' --recursive test",
     "lint": "eslint --fix lib *.js"
