@@ -1,0 +1,187 @@
+#! /usr/bin/env node
+'use strict';
+
+const path = require('path');
+const program = require('commander');
+const KMS = require(path.resolve(__dirname, '..', 'index.js'));
+const pkg = require(path.resolve(__dirname, '..', 'package.json'));
+
+const getConfig = require(path.resolve(__dirname, './config.js'));
+
+program
+  .version(pkg.version)
+  .description('Kms manager cli')
+  .option('--config <path>', 'set config path. defaults to ~/.kmsconfig')
+  .option('-r, --region <value>', 'specified region');
+
+function initKms() {
+  const config = getConfig(program.config);
+  if (program.region) config.region = program.region;
+  return KMS(config);
+}
+
+program
+  .command('create')
+  .description('create key id')
+  .option('-d, --description <value>', 'description of key')
+  .action(async function({ description, context }) {
+    try {
+      const kms = initKms();
+      const result = await kms.createKey({ description, context });
+      console.log(result.KeyId);
+      process.exit(1);
+    } catch (e) {
+      console.error('create key raise an error:', e);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('describe <key>')
+  .description('get key detail')
+  .action(async key => {
+    try {
+      const kms = initKms();
+      const detail = await kms.describeKey(key);
+      console.log(JSON.stringify(detail, null, 2));
+    } catch (e) {
+      console.error('listkey raise an error:', e);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('encrypt <plaintext>')
+  .description('encrypt plaintext by encrypt key')
+  .option('-k, --key <value>', 'key id to encrypt')
+  .option('--context <value>', 'encryption context')
+  .action(async function(plaintext, { key, context }) {
+    try {
+      const kms = initKms();
+      const result = await kms.encrypt(key, { plaintext, context });
+      console.log('encrypt %s, result: %s', plaintext, result.CiphertextBlob);
+    } catch (e) {
+      console.error('encrypt raise an error:', e);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('decrypt <ciphertext>')
+  .description('decrypt ciphertext')
+  .option('--context <value>', 'encryption context')
+  .action(async function(ciphertext, { context }) {
+    try {
+      const kms = initKms();
+      const result = await kms.decrypt({ ciphertext, context });
+      console.log({ ciphertext, plaintext: result.Plaintext });
+    } catch (e) {
+      console.error('decrypt raise an error:', e);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('enable <key>')
+  .action(async function(key) {
+    try {
+      const kms = initKms();
+      await kms.enableKey(key);
+      const detail = await kms.describeKey(key);
+      console.log(detail);
+    } catch (e) {
+      console.error('enable raise an error:', e);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('disable <key>')
+  .action(async function(key) {
+    try {
+      const kms = initKms();
+      const detail = await kms.describeKey(key);
+      console.log(detail);
+    } catch (e) {
+      console.error('disable raise an error:', e);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('listkey')
+  .description('list keys')
+  .option('-n, --number <value>', 'page number')
+  .option('-s, --size <value>', 'page size')
+  .action(async function({ number = 1, size = 10 }) {
+    try {
+      const kms = initKms();
+      const keys = await kms.listKeys({ pageNumber: parseInt(number) || 1, pageSize: parseInt(size) || 10 });
+      console.log('key lists:', JSON.stringify(keys, null, 2));
+    } catch (e) {
+      console.error('listkey raise an error:', e);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('listregion')
+  .description('list regions')
+  .action(async () => {
+    try {
+      const kms = initKms();
+      const regions = await kms.describeRegions();
+      console.log('key lists:', JSON.stringify(regions, null, 2));
+    } catch (e) {
+      console.error('listkey raise an error:', e);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('datakey <key>')
+  .description('generate data key')
+  .option('-s, --spec <value>', 'alogithm')
+  .option('--context <value>', 'encryption context')
+  .action(async (key, { context, spec }) => {
+    try {
+      const kms = initKms();
+      const result = await kms.generateDataKey(key, { context, keySpec: spec });
+      console.log(result);
+    } catch (e) {
+      console.error('generateDataKey raise an error:', e);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('delete <key>')
+  .description('schedule delete ')
+  .action(async key => {
+    try {
+      const kms = initKms();
+      await kms.scheduleKeyDeletion(key);
+      const detail = await kms.describeKey(key);
+      console.log(detail);
+    } catch (e) {
+      console.error('delete key raise an error:', e);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('cancel <key>')
+  .description('cancel deletion of key')
+  .action(async key => {
+    try {
+      const kms = initKms();
+      await kms.cancelKeyDeletion(key);
+      const detail = await kms.describeKey(key);
+      console.log(detail);
+    } catch (e) {
+      console.error('cancel deletion of key raise an error:', e);
+      process.exit(1);
+    }
+  });
+
+program.parse(process.argv);
